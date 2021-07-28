@@ -12,6 +12,9 @@ package io.vertx.ext.web.client.impl;
 
 import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpHeaders;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.User;
+import io.vertx.ext.auth.oauth2.OAuth2Auth;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientSession;
 import io.vertx.ext.web.client.spi.CookieStore;
@@ -23,10 +26,15 @@ public class WebClientSessionAware extends WebClientBase implements WebClientSes
 
   private final CookieStore cookieStore;
   private MultiMap headers;
+  private final OAuth2Auth oAuth2Auth;
+  private JsonObject tokenConfig;
+  private User user;
+  private boolean withAuthentication;
 
-  public WebClientSessionAware(WebClient webClient, CookieStore cookieStore) {
+  public WebClientSessionAware(WebClient webClient, CookieStore cookieStore, OAuth2Auth oAuth2Auth) {
     super((WebClientBase) webClient);
     this.cookieStore = cookieStore;
+    this.oAuth2Auth = oAuth2Auth;
     addInterceptor(new SessionAwareInterceptor());
   }
 
@@ -34,11 +42,56 @@ public class WebClientSessionAware extends WebClientBase implements WebClientSes
     return cookieStore;
   }
 
+  @Override
+  public WebClientSession withAuthentication(JsonObject tokenConfig) {
+    if (oAuth2Auth == null) {
+      throw new NullPointerException("Can not obtain required authentication for request as oAuth2Auth provider is null");
+    }
+
+    if (tokenConfig == null) {
+      throw new NullPointerException("Token Configuration passed to WebClientSessionAware can not be null");
+    }
+
+    if (this.tokenConfig != null && !this.tokenConfig.equals(tokenConfig)) {
+      //We need to invalidate the current data as new configuration is passed
+      user = null;
+    }
+
+    this.tokenConfig = tokenConfig;
+    this.withAuthentication = true;
+
+    return this;
+  }
+
   protected MultiMap headers() {
     if (headers == null) {
       headers = HttpHeaders.headers();
     }
     return headers;
+  }
+
+  OAuth2Auth getOAuth2Auth() {
+    return oAuth2Auth;
+  }
+
+  JsonObject getTokenConfig() {
+    return tokenConfig;
+  }
+
+  User getUser() {
+    return user;
+  }
+
+  void setUser(User user) {
+    this.user = user;
+  }
+
+  boolean isWithAuthentication() {
+    return withAuthentication;
+  }
+
+  void setWithAuthentication(boolean withAuthentication) {
+    this.withAuthentication = withAuthentication;
   }
 
   @Override
